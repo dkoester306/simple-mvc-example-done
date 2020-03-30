@@ -3,6 +3,7 @@ const models = require('../models');
 
 // get the Cat model
 const Cat = models.Cat.CatModel;
+const Dog = models.Dog.DogModel;
 
 // default fake data so that we have something to work with until we make a real Cat
 const defaultData = {
@@ -10,8 +11,15 @@ const defaultData = {
   bedsOwned: 0,
 };
 
+const defaultDogData = {
+  name: 'unknownName',
+  breed: 'unknownBreed',
+  age: 0,
+};
+
 // object for us to keep track of the last Cat we made and dynamically update it sometimes
 let lastAdded = new Cat(defaultData);
+let lastDogAdded = new Dog(defaultDogData);
 
 // function to handle requests to the main page
 // controller functions in Express receive the full HTTP request
@@ -70,6 +78,23 @@ const readCat = (req, res) => {
   Cat.findByName(name1, callback);
 };
 
+const readAllDogs = (req, res, callback) =>{
+  Dog.find(callback).lean();
+};
+
+const readDog = (req,res) => {
+  const name1 = req.query.name;
+
+  const callback = (err,doc) =>{
+    if(err){
+      return res.status(500).json({err});
+    }
+    return res.json(doc);
+  };
+
+  Dog.findByName(name1,callback);
+};
+
 // function to handle requests to the page1 page
 // controller functions in Express receive the full HTTP request
 // and a pre-filled out response object to send
@@ -114,6 +139,16 @@ const hostPage3 = (req, res) => {
   res.render('page3');
 };
 
+const hostPage4 = (req,res)=>{
+  const callback = (err,docs) =>{
+    if(err){
+      return res.status(500).json({err});
+    }
+    return res.render('page4',{dogs:docs});
+  };
+  readAllDogs(req,res,callback);
+};
+
 // function to handle get request to send the name
 // controller functions in Express receive the full HTTP request
 // and a pre-filled out response object to send
@@ -122,6 +157,10 @@ const getName = (req, res) => {
   // Since this sends back the data through HTTP
   // you can't send any more data to this user until the next response
   res.json({ name: lastAdded.name });
+};
+
+const getDogName = (req,res)=>{
+  res.json({name: lastDogAdded.name});
 };
 
 // function to handle a request to set the name
@@ -168,6 +207,30 @@ const setName = (req, res) => {
   return res;
 };
 
+const setDogName = (req,res)=>{
+  if(!req.body.firstname||!req.body.lastname||!req.body.breedname||!req.body.dogage){
+    return res.status(400).json({error: 'firstname, lastname, breed, and dogage are all required.'});
+  }
+  const name = `${req.body.firstname} ${req.body.lastname}`;
+
+  const dogData = {
+    name,
+    breed:req.body.breedname,
+    age: req.body.dogage,
+  };
+
+  const newDog = new Dog(dogData);
+  const savePromise = newDog.save();
+
+  savePromise.then(()=>{
+    lastDogAdded = newDog;
+    res.json({name: lastDogAdded.name, breed: lastDogAdded.breed, age:lastDogAdded.age});
+  });
+
+  savePromise.catch((err)=> res.status(500).json({err}));
+  return res;
+};
+
 
 // function to handle requests search for a name and return the object
 // controller functions in Express receive the full HTTP request
@@ -208,6 +271,21 @@ const searchName = (req, res) => {
   });
 };
 
+const searchDogName = (req,res)=>{
+  if(!req.query.name){
+    return res.status(400).json({error:'Name is required to perform a search'});
+  }
+  return Dog.findByName(req.query.name,(err,doc)=>{
+    if(err){
+      return res.status(500).json({err});
+    }
+    if(!doc){
+      return res.json({error:'No dogs found'});
+    }
+    return res.json({name:doc.name,breed:doc.breed,age:doc.age});
+  });
+};
+
 // function to handle a request to update the last added object
 // this PURELY exists to show you how to update a model object
 // Normally for an update, you'd get data from the client,
@@ -234,6 +312,15 @@ const updateLast = (req, res) => {
   savePromise.catch((err) => res.status(500).json({ err }));
 };
 
+const updateDogLast = (req,res) =>{
+  lastDogAdded.age++;
+
+  const savePromise = lastDogAdded.save();
+
+  savePromise.then(()=>res.json({name:lastDogAdded.name,breed:lastDogAdded.breed,age:lastDogAdded.age}));
+  savePromise.catch((err)=>res.status(500).json({err}));
+};
+
 // function to handle a request to any non-real resources (404)
 // controller functions in Express receive the full HTTP request
 // and get a pre-filled out response object to send
@@ -255,10 +342,16 @@ module.exports = {
   page1: hostPage1,
   page2: hostPage2,
   page3: hostPage3,
+  page4: hostPage4,
   readCat,
   getName,
   setName,
   updateLast,
   searchName,
   notFound,
+  readDog,
+  getDogName,
+  setDogName,
+  searchDogName,
+  updateDogLast,
 };
